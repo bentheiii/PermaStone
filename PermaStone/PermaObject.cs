@@ -6,11 +6,12 @@ using System.Linq;
 using System.Numerics;
 using System.Text;
 using System.Threading;
-using WhetStone.Looping;
-using WhetStone.Path;
 using CipherStone;
+using WhetStone.Looping;
+using WhetStone.Streams;
 using WhetStone.Units.Time;
 using WhetStone.WordPlay;
+using static PermaStone.Utility;
 
 namespace PermaStone
 {
@@ -49,12 +50,11 @@ namespace PermaStone
         public static string LocalName<T>(this IPermaObject<T> @this)
         {
             var s = @this.name;
-            return System.IO.Path.GetFileName(s);
+            return Path.GetFileName(s);
         }
         public static bool Readable<T>(this IPermaObject<T> @this)
         {
-            Exception ex;
-            var temp = @this.tryParse(out ex);
+            var temp = @this.tryParse(out Exception ex);
             return ex == null;
         }
         public static TimeSpan timeSinceUpdate<T>(this ISyncPermaObject<T> @this)
@@ -66,16 +66,16 @@ namespace PermaStone
     {
         private readonly FileStream _stream;
         public override FileAccess access { get; }
-        public override FileShare share { get; }
+        public sealed override FileShare share { get; }
         public override bool AllowCaching { get; }
-        public override bool DeleteOnDispose { get; set; }
+        public sealed override bool DeleteOnDispose { get; set; }
         private readonly Func<byte[], T> _read;
         private readonly Func<T, byte[]> _write;
         private Tuple<T, bool> _cache;
         public PermaObject(string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, T valueIfCreated = default(T), bool allowCaching = true) : this(a => (T)serialize.Deserialize(a), a => serialize.Serialize(a), name, deleteOnDispose, access, share, mode, valueIfCreated, allowCaching) { }
         public PermaObject(Func<byte[], T> read, Func<T, byte[]> write, string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, T valueIfCreated = default(T), bool allowCaching = true)
         {
-            name = System.IO.Path.GetFullPath(name);
+            name = Path.GetFullPath(name);
             if (mode == FileMode.Truncate || mode == FileMode.Append)
                 throw new ArgumentException("truncate and append modes are not supported", nameof(mode));
             bool create = !File.Exists(name);
@@ -92,7 +92,7 @@ namespace PermaStone
             if (share != FileShare.None)
                 options |= FileOptions.Asynchronous;
             DeleteOnDispose = deleteOnDispose;
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(name));
+            Directory.CreateDirectory(Path.GetDirectoryName(name));
             _stream = new FileStream(name, mode, access, share, 4096, options);
             if (create)
                 this.value = valueIfCreated;
@@ -107,7 +107,8 @@ namespace PermaStone
                 return _cache.Item1;
             try
             {
-                var b = LoadFiles.loadAsBytes(_stream);
+                _stream.Seek(0, SeekOrigin.Begin);
+                var b = _stream.ReadAll();
                 var ret = _read(b);
                 if (_cache != null)
                     _cache = Tuple.Create(ret, true);
@@ -119,12 +120,11 @@ namespace PermaStone
                 return default(T);
             }
         }
-        public override T value
+        public sealed override T value
         {
             get
             {
-                Exception prox;
-                T ret = tryParse(out prox);
+                T ret = tryParse(out Exception prox);
                 if (prox != null)
                     throw prox;
                 return ret;
@@ -179,7 +179,7 @@ namespace PermaStone
         public SyncPermaObject(Func<byte[], T> read, Func<T, byte[]> write, string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, T valueIfCreated = default(T), bool allowCaching = true)
         {
             _int = new PermaObject<T>(read, write, name, deleteOnDispose, access, share, mode, valueIfCreated, allowCaching);
-            _update = new PermaObject<DateTime>(FilePath.MutateFileName(name, a => "__LATESTUPDATE_" + a), deleteOnDispose, access, share, mode, DateTime.Now, allowCaching);
+            _update = new PermaObject<DateTime>(MutateFileName(name, a => "__LATESTUPDATE_" + a), deleteOnDispose, access, share, mode, DateTime.Now, allowCaching);
         }
         public override T getFresh(TimeSpan maxInterval)
         {
@@ -207,8 +207,7 @@ namespace PermaStone
         }
         public override DateTime getLatestUpdateTime()
         {
-            Exception e;
-            var a = _update.tryParse(out e);
+            var a = _update.tryParse(out Exception e);
             return (e == null) ? a : DateTime.MinValue;
         }
         public override T tryParse(out Exception ex)
@@ -332,12 +331,12 @@ namespace PermaStone
                 this.DeleteOnDispose = deleteOnDispose;
                 _valueIfCreated = valueIfCreated;
                 this.name = name;
-                _data = new PermaObject<PermaObjArrayData>(FilePath.MutateFileName(name, a => "__ARRAYDATA_" + a), deleteOnDispose, access, share, mode, new PermaObjArrayData(length, offset), allowCaching);
+                _data = new PermaObject<PermaObjArrayData>(MutateFileName(name, a => "__ARRAYDATA_" + a), deleteOnDispose, access, share, mode, new PermaObjArrayData(length, offset), allowCaching);
                 this.updateArr(true);
             }
             private string getname(int ind)
             {
-                return FilePath.MutateFileName(name, k => "__ARRAYMEMBER_" + ind + "_" + k);
+                return MutateFileName(name, k => "__ARRAYMEMBER_" + ind + "_" + k);
             }
             private IPermaObject<T> getperma(int index)
             {
@@ -583,14 +582,14 @@ namespace PermaStone
                 this.allowCaching = allowCaching;
                 this.DeleteOnDispose = deleteOnDispose;
                 _vvalueIfCreated = vvalueIfCreated;
-                _data = new PermaObject<PermaDictionaryData>(FilePath.MutateFileName(name, x => "__DICTIONARY_DATA_" + x), deleteOnDispose, access, share, mode, new PermaDictionaryData(0, ""), allowCaching);
+                _data = new PermaObject<PermaDictionaryData>(MutateFileName(name, x => "__DICTIONARY_DATA_" + x), deleteOnDispose, access, share, mode, new PermaDictionaryData(0, ""), allowCaching);
                 LoadDictionary(true);
             }
             public bool SupportMultiAccess => _data.share != FileShare.None;
 
             private IPermaObject<V> getVPerma(string name)
             {
-                return new PermaObject<V>(_vread, _vwrite, System.IO.Path.Combine(System.IO.Path.GetDirectoryName(_data.name), "__DICTIONARYVALUE_" + name), DeleteOnDispose, _data.access, _data.share, valueIfCreated: _vvalueIfCreated, allowCaching: _data.AllowCaching);
+                return new PermaObject<V>(_vread, _vwrite, Path.Combine(Path.GetDirectoryName(_data.name), "__DICTIONARYVALUE_" + name), DeleteOnDispose, _data.access, _data.share, valueIfCreated: _vvalueIfCreated, allowCaching: _data.AllowCaching);
             }
             private void LoadDictionary(bool @override = false)
             {
@@ -713,8 +712,7 @@ namespace PermaStone
             {
                 get
                 {
-                    V ret;
-                    if (!TryGetValue(key, out ret))
+                    if (!TryGetValue(key, out V ret))
                         throw new ArgumentOutOfRangeException(nameof(key));
                     return ret;
                 }
@@ -803,8 +801,7 @@ namespace PermaStone
             {
                 if ((SupportMultiAccess || overridemulti) && (_holdUpdateFlag == 0))
                 {
-                    Exception ex;
-                    this._definitions.tryParse(out ex);
+                    this._definitions.tryParse(out Exception ex);
                     if (ex != null)
                         this._definitions.value = "";
                     var defstring = this._definitions.value;
@@ -814,7 +811,7 @@ namespace PermaStone
                     foreach (string s in keys.Take(Math.Max(0, keys.Count() - 1)))
                     {
                         this._dic[s] = new PermaObject<T>(_read, _write,
-                            FilePath.MutateFileName(name, k => "__DICTIONARYMEMBER_" + s + "_" + k), DeleteOnDispose, _definitions.access, _definitions.share, FileMode.Open);
+                            MutateFileName(name, k => "__DICTIONARYMEMBER_" + s + "_" + k), DeleteOnDispose, _definitions.access, _definitions.share, FileMode.Open);
                     }
                 }
             }
@@ -864,8 +861,7 @@ namespace PermaStone
                 value = default(T);
                 if (!ContainsKey(key))
                     return false;
-                Exception e;
-                value = tryParse(key, out e);
+                value = tryParse(key, out Exception e);
                 return e == null;
             }
             public T this[string identifier]
@@ -883,7 +879,7 @@ namespace PermaStone
                     if (!_dic.ContainsKey(identifier))
                     {
                         _dic[identifier] = new PermaObject<T>(_read, _write,
-                            FilePath.MutateFileName(name, k => "__DICTIONARYMEMBER_" + identifier + "_" + k), DeleteOnDispose, _definitions.access, _definitions.share, FileMode.Create);
+                            MutateFileName(name, k => "__DICTIONARYMEMBER_" + identifier + "_" + k), DeleteOnDispose, _definitions.access, _definitions.share, FileMode.Create);
                         _definitions.value += identifier + _defSeperator;
                     }
                     _dic[identifier].value = value;
@@ -1007,7 +1003,7 @@ namespace PermaStone
             public PermaCollection(Func<byte[], T> read, Func<T, byte[]> write, string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate)
             {
                 _int = new PermaLabeledDictionary<T>(read, write, name, null, deleteOnDispose, access, share, mode);
-                _maxname = new PermaObject<long>(FilePath.MutateFileName(name, k => "__COLLECTIONMAXINDEX_" + k), deleteOnDispose, access, share, mode);
+                _maxname = new PermaObject<long>(MutateFileName(name, k => "__COLLECTIONMAXINDEX_" + k), deleteOnDispose, access, share, mode);
             }
             public IEnumerator<T> GetEnumerator()
             {

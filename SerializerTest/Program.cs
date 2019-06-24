@@ -14,8 +14,8 @@ namespace SerializerTest
         static void Main(string[] args)
         {
             var toEncode = new PermaList<Torrent_Notifier_3.Entry>.PermaObjArrayData(100, 610);
-            var bytes= DotNetSerializer.Serialize(toEncode);
-            File.WriteAllBytes(".out",bytes);
+            //var bytes= new DotNetFormatter<>().Serialize(toEncode);
+           // File.WriteAllBytes(".out",bytes);
         }
     }
 }

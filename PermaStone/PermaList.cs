@@ -25,7 +25,7 @@ namespace PermaStone.Enumerable
         }
         private IList<IPermaObject<T>> _array;
         private readonly IPermaObject<PermaObjArrayData> _data;
-        private readonly ByteSerializer _serializer;
+        private readonly IFormatter<T> _serializer;
         public bool DeleteOnDispose { get; set; }
         public FileAccess access
         {
@@ -51,9 +51,9 @@ namespace PermaStone.Enumerable
         private readonly T _valueIfCreated;
         public bool SupportMultiAccess => _data.share != FileShare.None;
         public PermaList(string name, int length = 0, int offset = 2, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, T valueIfCreated = default(T), bool allowCaching = true) :
-            this(length, offset, new DotNetSerializer(), name, deleteOnDispose, access, share, mode, valueIfCreated, allowCaching) { }
+            this(length, offset, getFormatter.GetFormatter<T>(), name, deleteOnDispose, access, share, mode, valueIfCreated, allowCaching) { }
         //if array already exists, the length and offset parameters are ignored
-        public PermaList(int length, int offset, ByteSerializer serializer, string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, T valueIfCreated = default(T), bool allowCaching = true)
+        public PermaList(int length, int offset, IFormatter<T> serializer, string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, T valueIfCreated = default(T), bool allowCaching = true)
         {
             _serializer = serializer;
             this.DeleteOnDispose = deleteOnDispose;
@@ -81,7 +81,7 @@ namespace PermaStone.Enumerable
         }
         public int IndexOf(T item)
         {
-            return (_array.CountBind().FirstOrDefault(a => a.Item1.value.Equals(item)) ?? Tuple.Create((IPermaObject<T>)null, -1)).Item2;
+            return (_array.CountBind().Cast<(IPermaObject<T>, int)?>().FirstOrDefault(a => a.Value.Item1.value.Equals(item), null) ?? ((IPermaObject<T>)null, -1)).Item2;
         }
         public void Insert(int index, T item)
         {

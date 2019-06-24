@@ -11,8 +11,8 @@ namespace PermaStone.Enumerable
     {
         private readonly PermaLabeledDictionary<T> _int;
         private readonly PermaObject<long> _maxname;
-        public PermaCollection(string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate) : this(new DotNetSerializer(), name, deleteOnDispose, access, share, mode) { }
-        public PermaCollection(ByteSerializer serializer, string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate)
+        public PermaCollection(string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate) : this(getFormatter.GetFormatter<T>(), name, deleteOnDispose, access, share, mode) { }
+        public PermaCollection(IFormatter<T> serializer, string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate)
         {
             _int = new PermaLabeledDictionary<T>(serializer, name, null, deleteOnDispose, access, share, mode);
             _maxname = new PermaObject<long>(Utility.MutateFileName(name, k => "__COLLECTIONMAXINDEX_" + k), deleteOnDispose, access, share, mode);

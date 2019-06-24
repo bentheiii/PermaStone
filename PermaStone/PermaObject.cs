@@ -66,11 +66,11 @@ namespace PermaStone
         public sealed override FileShare share { get; }
         public override bool AllowCaching { get; }
         public sealed override bool DeleteOnDispose { get; set; }
-        private readonly ByteSerializer _serializer;
+        private readonly IFormatter<T> _serializer;
         private Tuple<T, bool> _cache;
         public PermaObject(string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, T valueIfCreated = default(T), bool allowCaching = true) :
-            this(new DotNetSerializer(), name, deleteOnDispose, access, share, mode, valueIfCreated, allowCaching) {}
-        public PermaObject(ByteSerializer serializer, string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, T valueIfCreated = default(T), bool allowCaching = true)
+            this(getFormatter.GetFormatter<T>(), name, deleteOnDispose, access, share, mode, valueIfCreated, allowCaching) {}
+        public PermaObject(IFormatter<T> serializer, string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, T valueIfCreated = default(T), bool allowCaching = true)
         {
             name = Path.GetFullPath(name);
             if (mode == FileMode.Truncate || mode == FileMode.Append)
@@ -105,7 +105,7 @@ namespace PermaStone
             {
                 _stream.Seek(0, SeekOrigin.Begin);
                 var b = _stream.ReadAll();
-                var ret = _serializer.deserialize<T>(b);
+                var ret = _serializer.Deserialize<T>(b);
                 if (_cache != null)
                     _cache = Tuple.Create(ret, true);
                 return ret;
@@ -129,7 +129,7 @@ namespace PermaStone
             {
                 if (!access.HasFlag(FileAccess.Write))
                     throw new AccessViolationException("permaobject is set not to write");
-                byte[] buffer = _serializer.serialize(value);
+                byte[] buffer = _serializer.Serialize(value);
                 _stream.Seek(0, SeekOrigin.Begin);
                 _stream.SetLength(0);
                 _stream.Write(buffer, 0, buffer.Length);
@@ -172,8 +172,8 @@ namespace PermaStone
         private readonly PermaObject<T> _int;
         private readonly PermaObject<DateTime> _update;
         public SyncPermaObject(string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, T valueIfCreated = default(T), bool allowCaching = true) :
-            this(new DotNetSerializer(), name, deleteOnDispose, access, share, mode, valueIfCreated, allowCaching) { }
-        public SyncPermaObject(ByteSerializer serializer, string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, T valueIfCreated = default(T), bool allowCaching = true)
+            this(getFormatter.GetFormatter<T>(), name, deleteOnDispose, access, share, mode, valueIfCreated, allowCaching) { }
+        public SyncPermaObject(IFormatter<T> serializer, string name, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, T valueIfCreated = default(T), bool allowCaching = true)
         {
             _int = new PermaObject<T>(serializer, name, deleteOnDispose, access, share, mode, valueIfCreated, allowCaching);
             _update = new PermaObject<DateTime>(MutateFileName(name, a => "__LATESTUPDATE_" + a), deleteOnDispose, access, share, mode, DateTime.Now, allowCaching);

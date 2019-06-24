@@ -27,8 +27,8 @@ namespace PermaStone.Enumerable
         private readonly PermaObject<PermaDictionaryData> _data;
         private IDictionary<K, IPermaObject<V>> _dic;
 
-        private readonly ByteSerializer _kSerializer;
-        private readonly ByteSerializer _vSerializer;
+        private readonly IFormatter<K> _kSerializer;
+        private readonly IFormatter<V> _vSerializer;
         public bool DeleteOnDispose { get; set; }
         public FileAccess access
         {
@@ -53,8 +53,8 @@ namespace PermaStone.Enumerable
         }
         public bool allowCaching { get; }
         private readonly V _vvalueIfCreated;
-        public PermaDictionary(string name, bool allowCaching = true, FileAccess access = FileAccess.ReadWrite, bool deleteOnDispose = false, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, V vvalueIfCreated = default(V)) : this(new DotNetSerializer(), new DotNetSerializer(), name, allowCaching, access, deleteOnDispose, share, mode, vvalueIfCreated) { }
-        public PermaDictionary(ByteSerializer kSerializer, ByteSerializer vSerializer, string name, bool allowCaching, FileAccess access = FileAccess.ReadWrite, bool deleteOnDispose = false, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, V vvalueIfCreated = default(V))
+        public PermaDictionary(string name, bool allowCaching = true, FileAccess access = FileAccess.ReadWrite, bool deleteOnDispose = false, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, V vvalueIfCreated = default(V)) : this(getFormatter.GetFormatter<K>(), getFormatter.GetFormatter<V>(), name, allowCaching, access, deleteOnDispose, share, mode, vvalueIfCreated) { }
+        public PermaDictionary(IFormatter<K> kSerializer, IFormatter<V> vSerializer, string name, bool allowCaching, FileAccess access = FileAccess.ReadWrite, bool deleteOnDispose = false, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate, V vvalueIfCreated = default(V))
         {
             this.allowCaching = allowCaching;
             this.DeleteOnDispose = deleteOnDispose;
@@ -80,13 +80,13 @@ namespace PermaStone.Enumerable
             {
                 split.Add(NumberSerialization.FullCodeSerializer.DecodeSpecifiedLength(val, out val));
             }
-            _dic = split.Chunk(2).Select(a => Tuple.Create(_kSerializer.deserialize<K>(a[0].Select(x => (byte)x).ToArray()), getVPerma(a[1]))).ToDictionary();
+            _dic = split.Chunk(2).Select(a => Tuple.Create(_kSerializer.Deserialize<K>(a[0].Select(x => (byte)x).ToArray()), getVPerma(a[1]))).ToDictionary();
         }
         private string SaveDictionaryToString()
         {
             return
                 _dic.SelectMany(
-                        a => new[] { NumberSerialization.FullCodeSerializer.EncodeSpecificLength(_kSerializer.serialize(a.Key).Select(x => (char)x).ConvertToString()), NumberSerialization.FullCodeSerializer.EncodeSpecificLength(a.Value.name) })
+                        a => new[] { NumberSerialization.FullCodeSerializer.EncodeSpecificLength(_kSerializer.Serialize(a.Key).Select(x => (char)x).ConvertToString()), NumberSerialization.FullCodeSerializer.EncodeSpecificLength(a.Value.name) })
                     .StrConcat("");
         }
 
@@ -259,13 +259,13 @@ namespace PermaStone.Enumerable
                 return _definitions.AllowCaching;
             }
         }
-        private readonly ByteSerializer _serializer;
+        private readonly IFormatter<T> _serializer;
         private readonly string _defSeperator;
         private int _holdUpdateFlag = 0;
         public string name { get; }
         public bool SupportMultiAccess => (_definitions.share != FileShare.None);
-        public PermaLabeledDictionary(string name, string defSeperator = null, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate) : this(new DotNetSerializer(), name, defSeperator, deleteOnDispose, access, share, mode) { }
-        public PermaLabeledDictionary(ByteSerializer serializer ,string name, string defSeperator = null, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate)
+        public PermaLabeledDictionary(string name, string defSeperator = null, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate) : this(getFormatter.GetFormatter<T>(), name, defSeperator, deleteOnDispose, access, share, mode) { }
+        public PermaLabeledDictionary(IFormatter<T> serializer ,string name, string defSeperator = null, bool deleteOnDispose = false, FileAccess access = FileAccess.ReadWrite, FileShare share = FileShare.None, FileMode mode = FileMode.OpenOrCreate)
         {
             _definitions = new PermaObject<string>(name, deleteOnDispose, access, share, mode, "");
             DeleteOnDispose = deleteOnDispose;
